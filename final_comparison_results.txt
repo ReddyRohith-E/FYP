@@ -1,0 +1,8 @@
+FINAL MODEL COMPARISON (Unified Split)
+--------------------------------------
+Model                | Test Accuracy  
+Static FC-CNN        | 70.0000%
+SVM                  | 65.0000%
+MLP                  | 55.0000%
+Random Forest        | 50.0000%
+DFC-CNN              | 50.0000%

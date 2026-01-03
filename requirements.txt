@@ -7,3 +7,5 @@ seaborn
 jupyter
 ipykernel
 notebook
+tensorflow
+keras
