@@ -57,10 +57,10 @@ models/
 checkpoints/
 
 # Data files (if needed)
-*.csv
-*.tsv
-*.xls
-*.xlsx
+# *.csv
+# *.tsv
+# *.xls
+# *.xlsx
 !Dataset/Harvard-Oxford\ Atlas\ (Label\ of\ Brain\ Regions).csv
 # Uncomment below if you want to include training data
 # !Dataset/Training\ Data/**/*.csv
