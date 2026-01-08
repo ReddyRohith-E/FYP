@@ -42,8 +42,10 @@ venv.bak/
 *.swo
 *~
 .DS_Store
+*.env
 
 # Model files (often large)
+*.keras
 *.pkl
 *.joblib
 *.h5

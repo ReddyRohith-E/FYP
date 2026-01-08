@@ -9,3 +9,5 @@ ipykernel
 notebook
 tensorflow
 keras
+boto3
+sagemaker
