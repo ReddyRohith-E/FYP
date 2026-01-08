@@ -1,4 +1,8 @@
-abide_download/ 
+# Large fMRI data files
+*.nii.gz
+abide1_fmri_data/
+abide_download/
+
 # Python
 __pycache__/
 *.py[cod]
@@ -48,6 +52,12 @@ venv.bak/
 # Model files (often large)
 *.keras
 *.pkl
+*.h5
+
+# Large fMRI data files
+*.nii.gz
+abide1_fmri_data/
+abide_download/
 *.joblib
 *.h5
 *.hdf5
