@@ -5,9 +5,6 @@ This script demonstrates how to access ABIDE fMRI data directly from S3
 without downloading the entire 180GB+ dataset locally.
 """
 
-import sys
-sys.path.insert(0, '/path/to/your/project')
-
 from abide_s3_utils import S3ABIDEClient, ABIDEDataFilter, quick_load_sample
 import nibabel as nib
 import numpy as np
@@ -43,27 +40,32 @@ print("\n" + "=" * 70)
 print("METHOD 2: Filter by Criteria")
 print("=" * 70)
 
-client = S3ABIDEClient()
+client = S3ABIDEClient(use_anonymous=True)
 pheno_df = client.get_phenotypic_data()
-filter_obj = ABIDEDataFilter(pheno_df)
+
+if pheno_df is None:
+    print("Phenotypic data could not be loaded from S3; attempting local fallback handled in utils.")
+    filtered = np.array([])
+else:
+    filter_obj = ABIDEDataFilter(pheno_df)
 
 # Filter: Children (age 5-10) with ASD from NYU site
-filtered = filter_obj.apply_filters(
-    age_range=(5, 10),
-    diagnosis=1,  # ASD
-    site='NYU',
-    max_motion=0.5
-)
+    filtered = filter_obj.apply_filters(
+        age_range=(5, 10),
+        diagnosis=1,  # ASD
+        site='NYU',
+        max_motion=0.5
+    )
 
-print(f"Found {len(filtered)} subjects matching criteria")
-print(f"Columns available: {list(filtered.columns[:10])}")
+    print(f"Found {len(filtered)} subjects matching criteria")
+    print(f"Columns available: {list(filtered.columns[:10])}")
 
-# Load first 3 matching subjects
-matching_subjects = filtered['FILE_ID'].head(3).tolist()
-results = client.batch_load_subjects(matching_subjects, max_subjects=3)
+    # Load first 3 matching subjects
+    matching_subjects = filtered['FILE_ID'].head(3).tolist()
+    results = client.batch_load_subjects(matching_subjects, max_subjects=3)
 
-for result in results:
-    print(f"\n{result['subject_id']}: {result['nifti'].shape}")
+    for result in results:
+        print(f"\n{result['subject_id']}: {result['nifti'].shape}")
 
 
 # ============================================================================
@@ -97,25 +99,26 @@ print("METHOD 4: Process Directly in Memory")
 print("=" * 70)
 
 # Load data and process without saving to disk
-subject_ids = pheno_df[pheno_df['DX_GROUP'] == 1]['FILE_ID'].head(3).tolist()
+if pheno_df is not None:
+    subject_ids = pheno_df[pheno_df['DX_GROUP'] == 1]['FILE_ID'].head(3).tolist()
 
-for subject_id in subject_ids:
-    _, nifti_img = client.get_subject_data(subject_id)
-    
-    if nifti_img is not None:
-        # Get data array
-        data = nifti_img.get_fdata()
+    for subject_id in subject_ids:
+        _, nifti_img = client.get_subject_data(subject_id)
         
-        # Example calculations
-        mean_intensity = np.mean(data)
-        max_intensity = np.max(data)
-        num_voxels = data.shape[0] * data.shape[1] * data.shape[2]
-        
-        print(f"\n{subject_id}:")
-        print(f"  Shape: {data.shape}")
-        print(f"  Mean intensity: {mean_intensity:.2f}")
-        print(f"  Max intensity: {max_intensity:.2f}")
-        print(f"  Total voxels: {num_voxels}")
+        if nifti_img is not None:
+            # Get data array
+            data = nifti_img.get_fdata()
+            
+            # Example calculations
+            mean_intensity = np.mean(data)
+            max_intensity = np.max(data)
+            num_voxels = data.shape[0] * data.shape[1] * data.shape[2]
+            
+            print(f"\n{subject_id}:")
+            print(f"  Shape: {data.shape}")
+            print(f"  Mean intensity: {mean_intensity:.2f}")
+            print(f"  Max intensity: {max_intensity:.2f}")
+            print(f"  Total voxels: {num_voxels}")
 
 
 # ============================================================================

@@ -12,6 +12,9 @@ import numpy as np
 import pandas as pd
 from io import BytesIO
 from botocore.exceptions import ClientError
+from botocore import UNSIGNED
+from botocore.config import Config
+import os
 
 # S3 Configuration
 ABIDE_BUCKET = 'fcp-indi'
@@ -23,14 +26,27 @@ _phenotypic_cache = None
 
 
 class S3ABIDEClient:
-    """Client for accessing ABIDE data from AWS S3"""
+    """Client for accessing ABIDE data from AWS S3
+
+    By default uses anonymous (unsigned) access which works with the public
+    FCP-INDI bucket. Set use_anonymous=False if you want to use credentials.
+    """
     
-    def __init__(self):
-        self.s3_client = boto3.client('s3', region_name=ABIDE_REGION)
-        self.s3_resource = boto3.resource('s3', region_name=ABIDE_REGION)
+    def __init__(self, use_anonymous: bool = True):
+        if use_anonymous:
+            cfg = Config(signature_version=UNSIGNED)
+            self.s3_client = boto3.client('s3', region_name=ABIDE_REGION, config=cfg)
+            self.s3_resource = boto3.resource('s3', region_name=ABIDE_REGION, config=cfg)
+        else:
+            self.s3_client = boto3.client('s3', region_name=ABIDE_REGION)
+            self.s3_resource = boto3.resource('s3', region_name=ABIDE_REGION)
         
     def get_phenotypic_data(self):
-        """Load ABIDE phenotypic data from S3"""
+        """Load ABIDE phenotypic data.
+
+        Attempts S3 anonymous read first, then falls back to local CSV files
+        in the workspace if S3 access is unavailable.
+        """
         global _phenotypic_cache
         
         if _phenotypic_cache is not None:
@@ -47,7 +63,24 @@ class S3ABIDEClient:
             print(f"Loaded {len(df)} subjects")
             return df
         except Exception as e:
-            print(f"Error loading phenotypic data: {e}")
+            print(f"Error loading phenotypic data from S3 (will try local): {e}")
+            # Fallback to local CSVs if available
+            local_candidates = [
+                'Phenotypic_V1_0b_preprocessed1.csv',
+                'Phenotypic_V1_0b.csv',
+                os.path.join('ABIDEII_MRI_Quality_Metrics', 'functional_qap.csv')  # alternate QC metrics
+            ]
+            for path in local_candidates:
+                if os.path.exists(path):
+                    try:
+                        print(f"Loading phenotypic data from local file: {path}")
+                        df = pd.read_csv(path)
+                        _phenotypic_cache = df
+                        print(f"Loaded {len(df)} subjects from local CSV")
+                        return df
+                    except Exception as le:
+                        print(f"Failed to read local CSV {path}: {le}")
+            print("No phenotypic CSV available from S3 or local.")
             return None
     
     def list_available_files(self, pipeline='cpac', strategy='nofilt_noglobal', 
@@ -99,6 +132,9 @@ class S3ABIDEClient:
             
         except ClientError as e:
             print(f"Error downloading {subject_id}: {e}")
+            return None
+        except Exception as e:
+            print(f"Unexpected error loading {subject_id} from S3: {e}")
             return None
     
     def get_subject_data(self, subject_id):
@@ -183,6 +219,10 @@ class ABIDEDataFilter:
     
     def apply_filters(self, **kwargs):
         """Apply multiple filters at once"""
+        if self.df is None:
+            print("Phenotypic DataFrame is not loaded; returning empty result.")
+            return pd.DataFrame()
+
         df = self.df.copy()
         
         for key, value in kwargs.items():
@@ -203,7 +243,7 @@ class ABIDEDataFilter:
 
 def quick_load_sample(num_subjects=5):
     """Quick function to load a few sample subjects for testing"""
-    client = S3ABIDEClient()
+    client = S3ABIDEClient(use_anonymous=True)
     
     # Get phenotypic data
     phenotypic = client.get_phenotypic_data()
@@ -222,11 +262,14 @@ def quick_load_sample(num_subjects=5):
 
 if __name__ == "__main__":
     # Example usage
-    client = S3ABIDEClient()
+    client = S3ABIDEClient(use_anonymous=True)
     
     # Load phenotypic data
     pheno = client.get_phenotypic_data()
-    print(f"\nAvailable columns: {pheno.columns.tolist()[:10]}...")
+    if pheno is not None:
+        print(f"\nAvailable columns: {pheno.columns.tolist()[:10]}...")
+    else:
+        print("\nPhenotypic data unavailable.")
     
     # Get some file info
     files = client.list_available_files()
